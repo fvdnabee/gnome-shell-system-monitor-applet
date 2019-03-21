@@ -1658,18 +1658,6 @@ const Net = class SystemMonitor_Net extends ElementBase {
         this.client = libnm_glib ? NM.Client.new() : NM.Client.new(null);
         this.update_iface_list();
 
-        if (!this.ifs.length) {
-            let net_lines = Shell.get_file_contents_utf8_sync('/proc/net/dev').split('\n');
-            for (let i = 2; i < net_lines.length - 1; i++) {
-                let ifc = net_lines[i].replace(/^\s+/g, '').split(':')[0];
-                if (Shell.get_file_contents_utf8_sync('/sys/class/net/' + ifc + '/operstate')
-                    .replace(/\s/g, '') === 'up' &&
-                    ifc.indexOf('br') < 0 &&
-                    ifc.indexOf('lo') < 0) {
-                    this.ifs.push(ifc);
-                }
-            }
-        }
         this.gtop = new GTop.glibtop_netload();
         this.last = [0, 0, 0, 0, 0];
         this.usage = [0, 0, 0, 0, 0];
@@ -1703,9 +1691,29 @@ const Net = class SystemMonitor_Net extends ElementBase {
         } catch (e) {
             global.logError('Please install Network Manager Gobject Introspection Bindings');
         }
+
+        if (!this.ifs.length) {
+            this.update_iface_list_proc();
+        }
+    }
+    update_iface_list_proc() {
+        let net_lines = Shell.get_file_contents_utf8_sync('/proc/net/dev').split('\n');
+        for (let i = 2; i < net_lines.length - 1; i++) {
+            let ifc = net_lines[i].replace(/^\s+/g, '').split(':')[0];
+            if (Shell.get_file_contents_utf8_sync('/sys/class/net/' + ifc + '/operstate')
+                .replace(/\s/g, '') === 'up' &&
+                ifc.indexOf('br') < 0 &&
+                ifc.indexOf('lo') < 0) {
+                this.ifs.push(ifc);
+            }
+        }
     }
     refresh() {
         let accum = [0, 0, 0, 0, 0];
+
+        if (!this.ifs.length) {
+            this.update_iface_list();
+        }
 
         for (let ifn in this.ifs) {
             GTop.glibtop_get_netload(this.gtop, this.ifs[ifn]);
